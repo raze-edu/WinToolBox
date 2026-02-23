@@ -1,7 +1,0 @@
-# ADAdmin Package Development
-
-- [ ] Create `client.py` for Python-PowerShell interop.
-- [ ] Create `scripts/get_all_users.ps1` for querying Microsoft Graph.
-- [ ] Update [__init__.py](file:///y:/WinToolbox/ADAdmin/__init__.py) exposing the client class.
-- [ ] Implement robust error handling for PowerShell subprocess execution.
-- [ ] Verify the module fetches and parses user attributes (Manager, Licenses, Groups).
