@@ -1,11 +1,14 @@
 import os
 import ctypes
 from ctypes import wintypes
+from bitarray import bitarray as ba
+from bitarray.util import ba2int as b2i, int2ba as i2b
 
 try:
     from ykman.device import list_all_devices
     from yubikit.core.smartcard import SmartCardConnection
     from yubikit.piv import PivSession, SLOT
+    from yubikit.core import Tlv
 except ImportError:
     pass
 
@@ -127,10 +130,11 @@ class HardwareToken:
         # Authenticate with Management Key to write data
         session.authenticate(self.management_key)
         
-        # Write the 256-bit key to the Printed Information slot
-        # Notice we prefix the data with a tag/length or just store raw bytes.
-        # We will wrap it slightly so it doesn't fail basic parsing if needed, or put raw.
-        session.put_object(self.key_object_id, new_key)
+        # PIV standard requires data objects to be wrapped in Tag 0x53
+        wrapped_data = bytes(Tlv(0x53, new_key))
+        
+        # Write the wrapped 256-bit key to the Printed Information slot
+        session.put_object(self.key_object_id, wrapped_data)
         return new_key
 
     def read_256bit_key(self):
@@ -142,10 +146,24 @@ class HardwareToken:
             # Some YubiKey configurations might require PIN verification for reading
             session.verify_pin(self.pin)
             data = session.get_object(self.key_object_id)
+            
+            # Unwrap if it has the 0x53 tag
+            if data and data[0] == 0x53:
+                data = Tlv.parse_dict(data)[0x53]
+                
             if data and len(data) == 32:
-                return data
+                return ba(data)
             else:
                 return None
-        except Exception as e:
+        except Exception:
             # If PIN verification fails or the object is empty/malformed
             return None
+
+
+if __name__ == "__main__":
+    token = HardwareToken()
+    # Check for existing key first
+    #new_key = token.generate_and_store_256bit_key()
+    key = token.read_256bit_key()
+    #print(ba(new_key))
+    print(key)
