@@ -2,6 +2,13 @@ import os
 import hashlib
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from bitarray import bitarray as ba
+from Data import Data
+from EnDeCrypt import EnDeCrypt
+from HardwareToken import HardwareToken
+import win32api
+import win32security
+import win32con
+
 
 class Creds:
     def __init__(self, storage_dir="vault"):
@@ -94,6 +101,34 @@ class Creds:
               f"$creds"
         
         return cmd
+
+class UserEntity:
+    def __init__(self):
+        self.uid = UserEntity.get_current_domain_and_user()
+        self.hash = hashlib.sha256(self.uid.encode('utf-8')).hexdigest()
+
+    @property
+    def table(self):
+        return Data('CRED', 1028)
+
+    @staticmethod
+    def get_current_domain_and_user():
+        # 1. Get the handle to the current process
+        process = win32api.GetCurrentProcess()
+        
+        # 2. Open the access token associated with the process
+        token = win32security.OpenProcessToken(process, win32con.TOKEN_QUERY)
+        
+        # 3. Get the User SID (Security Identifier) from the token
+        user_sid, _ = win32security.GetTokenInformation(token, win32security.TokenUser)
+        
+        # 4. Look up the account name using the SID
+        # This natively returns a tuple of (Username, Domain, AccountType)
+        username, domain, account_type = win32security.LookupAccountSid(None, user_sid)
+        
+        return f'{domain}/{username}'
+
+
 
 if __name__ == "__main__":
     # Example usage:
