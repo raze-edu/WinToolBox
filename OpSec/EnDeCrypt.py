@@ -1,5 +1,6 @@
 import os
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from json import loads, dumps
 
 class EnDeCrypt:
     """
@@ -49,7 +50,11 @@ class EnDeCrypt:
         except Exception as e:
             raise ValueError("Decryption failed. Data might be tampered with or key is incorrect.") from e
 
+    def read_table(self, table: Data, name: str):
+        return loads(self.decrypt(table.read_file(name)).decode('utf-8'))
 
+    def write_table(self, table: Data, name: str, data: dict):
+        table.write_file(name, self.encrypt(dumps(data).encode('utf-8')))
 
 if __name__ == "__main__":
     def test():

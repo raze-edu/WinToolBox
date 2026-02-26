@@ -105,11 +105,27 @@ class Creds:
 class UserEntity:
     def __init__(self):
         self.uid = UserEntity.get_current_domain_and_user()
+        self.piv = None
         self.hash = hashlib.sha256(self.uid.encode('utf-8')).hexdigest()
 
     @property
     def table(self):
-        return Data('CRED', 1028)
+        return Data('CRED', 512), Data('ACC', 4096), Data('VAULT', 4096)
+
+    @property
+    def crypt(self):
+        return EnDeCrypt(self.piv)
+
+    @property
+    def key(self):
+        user, key = self.crypt.read_table(self.table[0], self.hash)
+        if user != self.uid:
+            return None
+        return bytes(key)
+        
+    @property
+    def ack(self):
+        return ba(bytes(self.crypt.read_table(self.table[1], self.hash)))
 
     @staticmethod
     def get_current_domain_and_user():

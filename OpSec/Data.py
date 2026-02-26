@@ -124,7 +124,7 @@ class Data:
             f.seek(offset + self.header_size)
             return f.read(actual_size)
 
-    def list_files(self):
+    def list_files(self, permission=None):
         """
         List all filenames within the archive.
         :return: List of strings.
@@ -145,6 +145,8 @@ class Data:
                     filenames.append(name)
                 
                 f.seek(self.slot_size, os.SEEK_CUR)
+        if permission is not None:
+            filenames = [fn for fn, p in zip(filenames, permission) if int(p) == 1]
         return filenames
 
 if __name__ == "__main__":
