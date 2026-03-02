@@ -1,5 +1,7 @@
 import os
 import struct
+from bitarray import bitarray as ba
+from bitarray.util import ba2hex as b2h, hex2ba as h2b, ba2int as b2i, int2ba as i2b
 
 class Data:
     def __init__(self, archive_path, slot_size=4096):
@@ -148,6 +150,18 @@ class Data:
         if permission is not None:
             filenames = [fn for fn, p in zip(filenames, permission) if int(p) == 1]
         return filenames
+
+
+class Access(Data):
+    __name__ = Access
+
+    def read_file(self, user):
+        return ba(super().read_file(user.hash))
+
+    def write_file(self, user, data:ba):
+        super().write_files(user.hash, data.tobytes())
+        
+        
 
 if __name__ == "__main__":
     # Example usage:
