@@ -110,7 +110,7 @@ class UserEntity:
 
     @property
     def table(self):
-        return Data('CRED', 512), Data('ACC', 4096), Data('VAULT', 4096)
+        return Data('CRED', 256), Data('ACC', 4096), Data('VAULT', 4096)
 
     @property
     def crypt(self):

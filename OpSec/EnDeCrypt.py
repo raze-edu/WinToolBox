@@ -16,7 +16,7 @@ class EnDeCrypt:
         self.key = key
         self.aesgcm = AESGCM(self.key)
 
-    def encrypt(self, data: bytes) -> bytes:
+    def encrypt(self, data) -> bytes:
         """
         Encrypts binary data using AES-GCM.
          Returns a concatenated bytes object: nonce (12 bytes) + ciphertext + tag.
