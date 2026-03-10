@@ -1,4 +1,5 @@
 import os
+from hashlib import sha256
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from json import loads, dumps
 
@@ -15,6 +16,10 @@ class EnDeCrypt:
             raise ValueError("Key must be exactly 32 bytes (256 bits).")
         self.key = key
         self.aesgcm = AESGCM(self.key)
+
+    @classmethod
+    def from_password(cls, password:str):
+        return cls(sha256(password).digest())
 
     def encrypt(self, data) -> bytes:
         """

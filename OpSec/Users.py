@@ -1,5 +1,9 @@
 import os
 import struct
+from bitarray import bitarray as ba
+from bitarray.util import ba2int as b2i, int2ba as i2b, ba2hex as b2h, hex2ba as h2b
+from pathlib import Path
+from HardwareToken import HardwareToken
 
 class UserRegister:
     def __init__(self, archive_path, n_user):
@@ -9,7 +13,7 @@ class UserRegister:
         :param archive_path: Path to the archive file.
         :param n_user: Maximum number of users (determines file size and index block size).
         """
-        self.archive_path = archive_path
+        self.archive_path = Path(archive_path, '.users')                                                                                         
         self.n_user = n_user
         
         # Calculate the size of the index block in bytes
@@ -188,3 +192,38 @@ class UserRegister:
             # Seek past the index block to preserve its iterated position value
             f.seek(slot_idx * self.slot_size + self.index_size)
             f.write(b'\x00' * (self.slot_size - self.index_size))
+
+
+class User:
+    def __init__(self, username, flags, key, int_list):
+        self.username = username
+        self.flags = flags
+        self.key = key
+        self.int_list = int_list
+
+    @classmethod
+    def load(cls, ureg: UserRegister):
+        dom, user = cls.get_current_domain_and_user()
+
+    def __setattr__(self, key, val):
+        if key == 'username':
+            if len(val) > 32:
+                raise ValueError("Username too long (max 32 bytes UTF-8)")
+        super().__setattr__(key, val)
+
+    @staticmethod
+    def get_current_domain_and_user():
+        # 1. Get the handle to the current process
+        process = win32api.GetCurrentProcess()
+        
+        # 2. Open the access token associated with the process
+        token = win32security.OpenProcessToken(process, win32con.TOKEN_QUERY)
+        
+        # 3. Get the User SID (Security Identifier) from the token
+        user_sid, _ = win32security.GetTokenInformation(token, win32security.TokenUser)
+        
+        # 4. Look up the account name using the SID
+        # This natively returns a tuple of (Username, Domain, AccountType)
+        username, domain, account_type = win32security.LookupAccountSid(None, user_sid)
+        
+        return f'{domain}/{username}'
