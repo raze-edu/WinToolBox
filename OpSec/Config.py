@@ -6,7 +6,7 @@ ROOT = Path().cwd()
 class ConfigHandle:
     config_path = Path(ROOT, 'config.json')
     config_obj = loads(open(Path(ROOT, 'config.json'), 'r').read())
-    __slots__ = 'archive_name', 'archive_path', 'slot_size', 'n_slots', 'n_users', 'name_length', 'timeout'
+    __slots__ = 'archive_name', 'archive_path', 'slot_size', 'n_slots', 'n_users', 'name_length', 'username_len', 'timeout'
     def __init__(self, **kwargs):
         default = dict(slot_size=4096, n_slots=4096, n_users=16, name_length=32, timeout=300)
         [super().__setattr__(slot, kwargs.get(slot, default.get(slot))) for slot in self.__slots__]

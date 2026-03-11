@@ -6,16 +6,17 @@ from pathlib import Path
 from HardwareToken import HardwareToken
 
 class UserRegister:
-    def __init__(self, archive_path, n_user):
+    def __init__(self, archive_path, n_user, username_len=32):
         """
         Initialize the UserRegister object with a path to a custom fixed-size slot archive.
         
         :param archive_path: Path to the archive file.
         :param n_user: Maximum number of users (determines file size and index block size).
         """
+        self.secret_length = 60
         self.archive_path = Path(archive_path, '.users')                                                                                         
         self.n_user = n_user
-        
+        self.username_len = username_len
         # Calculate the size of the index block in bytes
         # It needs to be large enough to hold integer values up to n_user - 1
         self.index_size = max(1, (max(0, n_user - 1).bit_length() + 7) // 8)
@@ -26,7 +27,7 @@ class UserRegister:
         # - flags: 1 byte
         # - key: 32 bytes
         # - 4 blocks of size index_size (list of 4 ints): 4 * index_size bytes
-        self.slot_size = self.index_size + 32 + 1 + 32 + (4 * self.index_size)
+        self.slot_size = self.index_size + 32 + 1 + 60 + (4 * self.index_size)
         
         # Initialize the file with blank slots if it doesn't exist
         if not os.path.exists(self.archive_path):
@@ -38,6 +39,14 @@ class UserRegister:
                     # Write 0s for the rest of the slot to initialize as empty slots
                     f.write(b'\x00' * (self.slot_size - self.index_size))
 
+    @property
+    def config_dict(self):
+        return dict(archive_path=self.archive_path, n_user=self.n_user, username_len=self.username_len)
+    
+    @classmethod
+    def load(cls, **kwargs):
+        return cls(*[kwargs.get(key) for key in ('archive_path', 'n_user', 'username_len')])
+    
     def _pack_slot(self, index: int, username: str, flags: list[bool], key: bytes, int_list: list[int]) -> bytes:
         if len(int_list) != 4:
             raise ValueError("int_list must contain exactly 4 integers")
@@ -51,9 +60,9 @@ class UserRegister:
         u_bytes = username.encode('utf-8')
         if len(u_bytes) == 0:
             raise ValueError("Username cannot be empty")
-        if len(u_bytes) > 32:
+        if len(u_bytes) > self.username_len:
             raise ValueError("Username too long (max 32 bytes UTF-8)")
-        u_bytes = u_bytes.ljust(32, b'\x00')
+        u_bytes = u_bytes.ljust(self.username_len, b'\x00')
         
         # 3. flags (1 byte holding max 8 flags)
         if len(flags) > 8:
@@ -64,10 +73,10 @@ class UserRegister:
                 flag_byte |= (1 << i)
         flags_bytes = struct.pack("<B", flag_byte)
         
-        # 4. key (32 bytes)
-        if len(key) > 32:
+        # 4. key (60 bytes)
+        if len(key) > self.secret_length:
             raise ValueError("Key too long (max 32 bytes)")
-        key_bytes = key.ljust(32, b'\x00')
+        key_bytes = key.ljust(60, b'\x00')
         
         # 5. 4 blocks of index_size
         int_bytes = bytearray()
@@ -88,18 +97,18 @@ class UserRegister:
         offset += self.index_size
         
         # 2. username
-        u_bytes = data[offset:offset+32]
+        u_bytes = data[offset:offset+self.username_len]
         username = u_bytes.split(b'\x00', 1)[0].decode('utf-8')
-        offset += 32
+        offset += self.username_len
         
         # 3. flags
         flag_byte = struct.unpack("<B", data[offset:offset+1])[0]
         flags = [(flag_byte & (1 << i)) != 0 for i in range(8)]
         offset += 1
         
-        # 4. key
-        key = data[offset:offset+32]
-        offset += 32
+        # 4. secret
+        key = data[offset:offset+60]
+        offset += self.secret_length
         
         # 5. 4 blocks of index_size
         int_list = []
@@ -119,7 +128,7 @@ class UserRegister:
         with open(self.archive_path, "rb") as f:
             for i in range(self.n_user):
                 f.seek(i * self.slot_size + self.index_size)
-                slot_u_bytes = f.read(32)
+                slot_u_bytes = f.read(self.username_len)
                 if slot_u_bytes.split(b'\x00', 1)[0] == u_bytes:
                     return i
         return -1
@@ -129,7 +138,7 @@ class UserRegister:
         with open(self.archive_path, "rb") as f:
             for i in range(self.n_user):
                 f.seek(i * self.slot_size + self.index_size)
-                slot_u_bytes = f.read(32)
+                slot_u_bytes = f.read(self.username_len)
                 if slot_u_bytes[0] == 0:  # Empty username means it starts with a null byte
                     return i
         return -1
@@ -137,9 +146,9 @@ class UserRegister:
     def write_user(self, username: str, flags: list[bool], key: bytes, int_list: list[int]):
         """
         Write a new user slot to the archive. Finds an empty slot, fails if none or if username exists.
-        :param username: 32-byte max username. Must be unique and not empty.
+        :param username: usernamelen-byte max username. Must be unique and not empty.
         :param flags: list of booleans (up to 8).
-        :param key: 32-byte max key.
+        :param key: 60-byte max key.
         :param int_list: list of 4 integers.
         """
         if len(username) == 0:
@@ -194,16 +203,32 @@ class UserRegister:
             f.write(b'\x00' * (self.slot_size - self.index_size))
 
 
+class Flags(list):
+    def __init__(self, *args):
+        temp = [False for _ in range(8)]
+        if len(args) > 8:
+            raise ValueError("Flags list must contain at most 8 elements")
+        for i in range(len(args)):
+            temp[i] = args[i]
+        super().__init__(*temp)
+
+
 class User:
     def __init__(self, username, flags, key, int_list):
         self.username = username
-        self.flags = flags
+        self.flags = Flags(flags)
         self.key = key
         self.int_list = int_list
 
     @classmethod
+    def create_pw(cls):
+        dom, user = cls.get_current_domain_and_user()
+        pw = input(f"Enter password for {dom}/{user}: ")
+        
+    @classmethod
     def load(cls, ureg: UserRegister):
         dom, user = cls.get_current_domain_and_user()
+        return cls(user, Flags(), b'', [])
 
     def __setattr__(self, key, val):
         if key == 'username':

@@ -2,20 +2,28 @@ import os
 from hashlib import sha256
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from json import loads, dumps
+from util.bits import Bits
 
 class EnDeCrypt:
     """
     EnDeCrypt handles 256-bit AES-GCM encryption and decryption of binary data.
     """
-    def __init__(self, key: bytes):
+    def __init__(self, key):
         """
         Initialize with a 256-bit (32 byte) key.
         :param key: 32 bytes of key material.
         """
+        if isinstance(key, str):
+            key = key.encode('utf-8') 
+        if isinstance(key, Bits):
+            key = key.tobytes()
         if len(key) != 32:
             raise ValueError("Key must be exactly 32 bytes (256 bits).")
-        self.key = key
-        self.aesgcm = AESGCM(self.key)
+        self.key_bytes = key
+    
+    @property
+    def codec(self):
+        return AESGCM(self.key_bytes)
 
     @classmethod
     def from_password(cls, password:str):
@@ -28,12 +36,14 @@ class EnDeCrypt:
         :param data: The binary data to encrypt.
         :return: Encrypted data.
         """
-        if not isinstance(data, bytes):
-            data = data.encode('utf-8') if isinstance(data, str) else bytes(data)
+        if isinstance(data, str):
+            data = data.encode('utf-8') 
+        if isinstance(data, Bits):
+            data = data.tobytes()
             
         nonce = os.urandom(12) # GCM standard nonce size
         # encrypt returns ciphertext + tag
-        ciphertext = self.aesgcm.encrypt(nonce, data, None)
+        ciphertext = self.codec.encrypt(nonce, data, None)
         return nonce + ciphertext
 
     def decrypt(self, encrypted_data: bytes) -> bytes:
@@ -51,7 +61,7 @@ class EnDeCrypt:
         ciphertext = encrypted_data[12:]
         
         try:
-            return self.aesgcm.decrypt(nonce, ciphertext, None)
+            return self.codec.decrypt(nonce, ciphertext, None)
         except Exception as e:
             raise ValueError("Decryption failed. Data might be tampered with or key is incorrect.") from e
 
@@ -79,4 +89,16 @@ if __name__ == "__main__":
             print(temp == temp2, temp2)
             print(msg == cipher.decrypt(temp2), cipher.decrypt(temp2))
 			
-    test2(*test())
+    #test2(*test())
+    def testk():
+        key = Bits.random(32)
+        check = Bits.random(32)
+        temp = EnDeCrypt(key)
+        enc = temp.encrypt(check)
+        print(check.tobytes())
+        print(len(Bits.from_bytes(enc)))
+        print(enc)
+        dec = temp.decrypt(enc)
+        print(len(Bits.from_bytes(dec)))
+        print(dec)
+    testk()
