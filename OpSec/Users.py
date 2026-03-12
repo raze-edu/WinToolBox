@@ -1,17 +1,40 @@
 import os
 import struct
+import win32api
+import win32security
+import win32con
+from pathlib import Path
+from json import loads, dumps
+
+def get_current_domain_and_user():
+    # 1. Get the handle to the current process
+    process = win32api.GetCurrentProcess()
+    
+    # 2. Open the access token associated with the process
+    token = win32security.OpenProcessToken(process, win32con.TOKEN_QUERY)
+    
+    # 3. Get the User SID (Security Identifier) from the token
+    user_sid, _ = win32security.GetTokenInformation(token, win32security.TokenUser)
+    
+    # 4. Look up the account name using the SID
+    # This natively returns a tuple of (Username, Domain, AccountType)
+    username, domain, account_type = win32security.LookupAccountSid(None, user_sid)
+    
+    return domain, username
+
 
 class UserRegister:
-    def __init__(self, archive_path, n_user):
+    def __init__(self, name, archive_path, n_user):
         """
         Initialize the UserRegister object with a path to a custom fixed-size slot archive.
         
         :param archive_path: Path to the archive file.
         :param n_user: Maximum number of users (determines file size and index block size).
         """
-        self.archive_path = archive_path
+        self.name = name
+        self.archive_path = Path(archive_path, '.users')
         self.n_user = n_user
-        
+        self.config_save()
         # Calculate the size of the index block in bytes
         # It needs to be large enough to hold integer values up to n_user - 1
         self.index_size = max(1, (max(0, n_user - 1).bit_length() + 7) // 8)
@@ -33,6 +56,28 @@ class UserRegister:
                     f.write(i.to_bytes(self.index_size, byteorder='little'))
                     # Write 0s for the rest of the slot to initialize as empty slots
                     f.write(b'\x00' * (self.slot_size - self.index_size))
+    
+    def __dict__(self):
+        return dict(path=self.archive_path, n_user=self.n_user)
+    
+    @classmethod
+    def config_load(cls, name):
+        with open('config.json') as f:
+            data = loads(f.read())
+            if data.get(name, False):
+                return cls(name, data[name]['users'], data[name]['n_user'])
+
+    def config_save(self):    
+        with open('config.json') as f:
+            data = loads(f.read())
+        data[self.name].update({'users': self.archive_path, 'n_user': self.n_user})
+        with open('config.json', 'w') as f:
+            f.write(dumps(data, indent=4))
+
+    def signin(self):
+        domain, username = get_current_domain_and_user()
+        print(domain, username)
+        return self.read_user(username)
 
     def _pack_slot(self, index: int, username: str, flags: list[bool], key: bytes, int_list: list[int]) -> bytes:
         if len(int_list) != 4:
@@ -188,3 +233,20 @@ class UserRegister:
             # Seek past the index block to preserve its iterated position value
             f.seek(slot_idx * self.slot_size + self.index_size)
             f.write(b'\x00' * (self.slot_size - self.index_size))
+
+
+class User:
+    def __init__(self, username: str, flags: list[bool], key: bytes, int_list: list[int]):
+        self.username = username
+        self.flags = flags
+        self.key = key
+        self.int_list = int_list
+
+    def write(self):
+        self.register.write_user(self.username, self.flags, self.key, self.int_list)
+
+    def read(self):
+        return self.register.read_user(self.username)
+
+    def delete(self):
+        self.register.delete_user(self.username)

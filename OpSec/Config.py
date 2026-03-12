@@ -1,13 +1,12 @@
 from json import dumps, loads
+from hashlib import sha256
 from pathlib import Path
 
 ROOT = Path().cwd()
 
-class ConfigHandle:
-    __slots__ = 'name', 'blocksize', 'blocks', 'path'
-    def __init__(self, **kwargs):
-        [super().__setattr__(slot, kwargs.get(slot)) for slot in self.__slots__]
-        pass
+class ConfigHandle(dict):
+    def __init__(self):
+        super().__init__(**self.config_obj)
 
     @property
     def configpath(self):
@@ -16,11 +15,37 @@ class ConfigHandle:
     @property
     def config_obj(self):
         return loads(open(self.configpath, 'r').read())
-    
+
+    @staticmethod
+    def read_path(path:list):
+        return Path(*path)
+
+    @staticmethod
+    def write_path(path:Path):
+        return list(path.parts)
+
     @property
     def configs(self):
         return [key for key in self.config_obj.keys()]
-        
+    
+    def get_users_config(self, name):
+        if (config := self.get(name, False)):
+            return self.read_path(config['path']), config['n_user']
+        return None
+
+    def get_data_config(self, name):
+        if (config := self.get(name, False)):
+            return self.read_path(config['path']), config['n_slots'], config['slot_size'], config['n_users'], config['name_length']
+        return None
+
+    def get_local_secret_part(self, name):
+        if (config := self.get(name, False)):
+            return config['secret']
+        return None
+
+    def get_puplic_key(self, name):
+        return sha256(name.encode('utf-8')).hexdigest()
+    
     def __setattr__(self, key, val):
         if key == 'path':
             if not isinstance(val, Path):

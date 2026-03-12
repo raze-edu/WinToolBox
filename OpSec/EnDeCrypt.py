@@ -1,6 +1,7 @@
 import os
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from json import loads, dumps
+from hashlib import sha256
 
 class EnDeCrypt:
     """

@@ -1,14 +1,17 @@
 from pathlib import Path
-from OpSec.EnDeCrypt import EnDeCrypt
-from OpSec.Data import Data
-from OpSec.HardwareToken import HardwareToken
+#from OpSec.EnDeCrypt import EnDeCrypt
+#from OpSec.Data import Data
+#from OpSec.HardwareToken import HardwareToken
+from OpSec.Users import UserRegister
+from bitarray import bitarray as ba
+from bitarray.util import ba2hex as b2h, hex2ba as h2b, int2ba as i2b, ba2int as b2i
 import os
 from json import dumps, loads
 
-key = os.urandom(32)
-crypt_handle = EnDeCrypt(key)
-fp = Path("TESTFILE")
-
+#key = os.urandom(32)
+#crypt_handle = EnDeCrypt(key)
+#fp = Path("TESTFILE")
+'''
 def write(name, data):
     data_handle = Data(fp)
     print(data)
@@ -30,11 +33,11 @@ def test_a():
         if file != "TESTFILE":
             print(file)
             print(loads(read(file).decode('utf-8')))
-
+'''
 import win32api
 import win32security
 import win32con
-
+'''
 def get_current_domain_and_user():
     # 1. Get the handle to the current process
     process = win32api.GetCurrentProcess()
@@ -50,5 +53,17 @@ def get_current_domain_and_user():
     username, domain, account_type = win32security.LookupAccountSid(None, user_sid)
     
     return domain, username
+'''
+#print(get_current_domain_and_user())
 
-print(get_current_domain_and_user())
+os.chdir('OpSec')
+
+def _new():
+    user_register = UserRegister(".users", 16)
+    for name in ('Tequila', 'Mockingbird', 'Max', 'Musterfrau', 'Alice', 'Bob'):
+        user_register.write_user(name, [True, False, True, False, True, False, True, False], os.urandom(32), [0, 1, 2, 3])
+
+test = UserRegister.load('template')
+test.write_user('RazeVorteX', [True, False, True, False, True, False, True, False], os.urandom(32), [0, 1, 2, 3])
+
+print(test.signin())
