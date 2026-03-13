@@ -38,14 +38,10 @@ class UserRegister:
                     f.write(i.to_bytes(self.index_size, byteorder='little'))
                     # Write 0s for the rest of the slot to initialize as empty slots
                     f.write(b'\x00' * (self.slot_size - self.index_size))
-
-    @property
-    def config_dict(self):
-        return dict(archive_path=self.archive_path, n_user=self.n_user, username_len=self.username_len)
     
     @classmethod
-    def load(cls, **kwargs):
-        return cls(*[kwargs.get(key) for key in ('archive_path', 'n_user', 'username_len')])
+    def config_load(cls, config: ConfigHandle):
+        return cls(config.archive_path, config.n_user, config.username_len)
     
     def _pack_slot(self, index: int, username: str, flags: list[bool], key: bytes, int_list: list[int]) -> bytes:
         if len(int_list) != 4:

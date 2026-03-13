@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 class Data:
-    def __init__(self, archive_name: str, archive_path: Path | str, n_slots: int, slot_size: int, n_users: int, name_length: int = 64):
+    def __init__(self, archive_name: str, archive_path: Path | str, n_slots: int, slot_size: int, n_users: int, dataname_length: int = 64):
         """
         Initialize the Data object with a fixed-size slot archive.
         """
@@ -13,7 +13,7 @@ class Data:
         self.n_slots = n_slots
         self.slot_size = slot_size
         self.n_users = n_users
-        self.name_length = name_length
+        self.dataname_length = dataname_length
         
         # Calculate sizes
         self.id_bytes = max(1, (max(0, n_slots - 1).bit_length() + 7) // 8)
@@ -40,17 +40,13 @@ class Data:
         return dict(path=self.archive_path, n_slots=self.n_slots, slot_size=self.slot_size, n_users=self.n_users, name_length=self.name_length)
     
     @classmethod
-    def config_load(cls, name):
-        with open(Path(ROOT,'config.json'), 'r') as f:
-            data = loads(f.read())
-            if data.get(name, False):
-                return cls(name, data[name]['data'], data[name]['n_slots'], data[name]['slot_size'], data[name]['n_users'], data[name]['name_length'])
-        return None
+    def config_load(cls, config: ConfigHandle):
+        return cls(config.archive_name, config.archive_path, config.n_slots, config.slot_size, config.n_users, config.dataname_length)
 
     def config_save(self):
         with open(Path(ROOT, 'config.json'), 'r') as f:
             data = loads(f.read())
-        data[self.name].update({'data': self.archive_path, 'n_slots': self.n_slots, 'slot_size': self.slot_size, 'n_users': self.n_users, 'name_length': self.name_length})
+        data[self.name].update({'data': self.archive_path, 'n_slots': self.n_slots, 'slot_size': self.slot_size, 'n_users': self.n_users, 'dataname_length': self.dataname_length})
         with open(Path(ROOT, 'config.json'), 'w') as f:
             f.write(dumps(data, indent=4))
 
@@ -80,8 +76,8 @@ class Data:
     def _pack_index_entry(self, entry_id: int, name: str, data_type: int, perms: list) -> bytes:
         id_b = entry_id.to_bytes(self.id_bytes, 'big')
         
-        name_b = name.encode('utf-8')[:self.name_length]
-        name_b = name_b.ljust(self.name_length, b'\x00')
+        name_b = name.encode('utf-8')[:self.dataname_length]
+        name_b = name_b.ljust(self.dataname_length, b'\x00')
         
         type_b = data_type.to_bytes(1, 'big')
         
@@ -97,9 +93,9 @@ class Data:
         entry_id = int.from_bytes(data[offset:offset+self.id_bytes], 'big')
         offset += self.id_bytes
         
-        name_raw = data[offset:offset+self.name_length]
+        name_raw = data[offset:offset+self.dataname_length]
         name = name_raw.split(b'\x00', 1)[0].decode('utf-8')
-        offset += self.name_length
+        offset += self.dataname_length
         
         data_type = int.from_bytes(data[offset:offset+1], 'big')
         offset += 1
@@ -175,8 +171,8 @@ class Data:
                 f.seek(i * self.index_entry_size)
                 data = f.read(self.index_entry_size)
                 # First check name string quickly
-                name_raw = data[self.id_bytes:self.id_bytes+self.name_length]
-                if name_raw.startswith(name.encode('utf-8') + b'\x00') or name_raw == name.encode('utf-8').ljust(self.name_length, b'\x00'):
+                name_raw = data[self.id_bytes:self.id_bytes+self.dataname_length]
+                if name_raw.startswith(name.encode('utf-8') + b'\x00') or name_raw == name.encode('utf-8').ljust(self.dataname_length, b'\x00'):
                     entry = self._unpack_index_entry(data)
                     return entry
         return None
@@ -192,8 +188,8 @@ class Data:
             raise ValueError(f"Content exceeds slot size of {self.slot_size} bytes")
             
         name_bytes = filename.encode('utf-8')
-        if len(name_bytes) > self.name_length:
-            raise ValueError(f"Name exceeds max length of {self.name_length} bytes")
+        if len(name_bytes) > self.dataname_length:
+            raise ValueError(f"Name exceeds max length of {self.dataname_length} bytes")
 
         entry = self.get_file_info(filename)
         if entry:

@@ -2,6 +2,10 @@ import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
 
+class Global:
+    data = {}
+
+
 class NewContainerConfigWindow(tk.Toplevel):
     def __init__(self, master=None):
         super().__init__(master)
@@ -98,16 +102,27 @@ class NewContainerConfigWindow(tk.Toplevel):
             'timeout': self.timeout_var.get(),
             'supw': self.supw_var.get()
         }
+
     def create(self):
-        # Empty method for now
-        pass
+        Global.data.update(self.__dict__())
+        print(Global.data)
+        self.destroy()
 
     def cancle(self):
         self.destroy()
 
-if __name__ == "__main__":
+
+def run_gui(window):
     root = tk.Tk()
     root.withdraw() # Hide the root window
-    app = NewContainerConfigWindow(root)
-    app.protocol("WM_DELETE_WINDOW", root.destroy)
-    root.mainloop()
+    app = window(root)
+    root.wait_window(app)
+    try:
+        root.destroy()
+    except tk.TclError:
+        pass
+    return Global.data
+
+if __name__ == "__main__":
+    print(run_gui(NewContainerConfigWindow))
+    

@@ -2,6 +2,8 @@ from json import dumps, loads
 from hashlib import sha256
 from pathlib import Path
 from util.bits import Bits
+from Data import Data
+from Users import UserRegister
 
 ROOT = Path().cwd()
 
@@ -18,20 +20,28 @@ class ConfigHandle:
         return [key for key in self.config_obj.keys()]
 
     def validate_key(self, key):
-        return key.decrypt(self.key_validation).decode('utf-8') == self.archive_name
+        return key.decrypt(self.checksum).decode('utf-8') == self.archive_name
 
+    @property
+    def data(self):
+        return Data.config_load(self)
+
+    @property
+    def users(self):
+        return UserRegister.config_load(self)
+    
     def get_users_config(self, name):
-        if (config := self.get(name, False)):
+        if (config := self.config_obj.get(name, False)):
             return self.read_path(config['path']), config['n_user']
         return None
 
     def get_data_config(self, name):
-        if (config := self.get(name, False)):
+        if (config := self.config_obj.get(name, False)):
             return self.read_path(config['path']), config['n_slots'], config['slot_size'], config['n_users'], config['name_length']
         return None
 
     def get_local_secret_part(self, name):
-        if (config := self.get(name, False)):
+        if (config := self.config_obj.get(name, False)):
             return config['secret']
         return None
 
