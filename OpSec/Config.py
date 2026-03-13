@@ -1,33 +1,25 @@
 from json import dumps, loads
 from hashlib import sha256
 from pathlib import Path
+from util.bits import Bits
 
 ROOT = Path().cwd()
 
-class ConfigHandle(dict):
-    def __init__(self):
-        super().__init__(**self.config_obj)
-
-    @property
-    def configpath(self):
-        return Path(ROOT, 'config.json')
-
-    @property
-    def config_obj(self):
-        return loads(open(self.configpath, 'r').read())
-
-    @staticmethod
-    def read_path(path:list):
-        return Path(*path)
-
-    @staticmethod
-    def write_path(path:Path):
-        return list(path.parts)
-
+class ConfigHandle:
+    config_path = Path(ROOT, 'config.json')
+    config_obj = loads(open(Path(ROOT, 'config.json'), 'r').read())
+    __slots__ = 'archive_name', 'archive_path', 'slot_size', 'n_slots', 'n_users', 'name_length', 'username_len', 'timeout', 'key_validation'
+    def __init__(self, **kwargs):
+        default = dict(slot_size=4096, n_slots=4096, n_users=16, name_length=32, timeout=300)
+        [super().__setattr__(slot, kwargs.get(slot, default.get(slot))) for slot in self.__slots__]
+    
     @property
     def configs(self):
         return [key for key in self.config_obj.keys()]
-    
+
+    def validate_key(self, key):
+        return key.decrypt(self.key_validation).decode('utf-8') == self.archive_name
+
     def get_users_config(self, name):
         if (config := self.get(name, False)):
             return self.read_path(config['path']), config['n_user']
@@ -47,12 +39,17 @@ class ConfigHandle(dict):
         return sha256(name.encode('utf-8')).hexdigest()
     
     def __setattr__(self, key, val):
-        if key == 'path':
+        if key == 'archive_path':
             if not isinstance(val, Path):
                 if isinstance(val, str):
                     val = Path(val)
                 if isinstance(val, list):
                     val = Path(*val)
+        elif key == 'key_validation':
+            if isinstance(val, str):
+                val = Bits(val)
+            elif isinstance(val, bytes):
+                val = Bits.from_bytes(val)
         super().__setattr__(key, val)
 
     def create(self):
@@ -60,6 +57,27 @@ class ConfigHandle(dict):
             with open(self.configpath, 'w') as f:
                 f.write(dumps({}))
         temp = self.config_obj
-        temp.update({self.name:{'name':self.name, 'blocksize': self.blocksize, 'blocks': self.blocks, 'path': self.path.parts}})
+        data = {'archive_name': self.archive_name, 
+                'archive_path': self.archive_path.parts, 
+                'slot_size': self.slot_size, 
+                'n_slots': self.n_slots, 
+                'n_users': self.n_users, 
+                'name_length': self.name_length, 
+                'timeout': self.timeout}
+        temp.update({self.archive_name: data})
+        with open(self.configpath, 'w') as f:
+            f.write(dumps(temp, indent=4))
 
-print(Path(Path().cwd(), 'config.json'))
+    def remove(self, name):
+        temp = self.config_obj
+        if name in temp:
+            del temp[name]
+            with open(self.configpath, 'w') as f:
+                f.write(dumps(temp, indent=4))
+
+    @classmethod
+    def load(cls, name):
+        if cls.config_obj.get(name, False):
+            return cls(**cls.config_obj[name])
+        else:
+            raise ValueError(f"Config '{name}' not found")

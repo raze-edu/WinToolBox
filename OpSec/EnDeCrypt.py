@@ -1,38 +1,58 @@
 import os
+from hashlib import sha256
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from json import loads, dumps
 from hashlib import sha256
+from util.bits import Bits
 
 class EnDeCrypt:
     """
     EnDeCrypt handles 256-bit AES-GCM encryption and decryption of binary data.
     """
-    def __init__(self, key: bytes):
+    def __init__(self, key):
         """
         Initialize with a 256-bit (32 byte) key.
         :param key: 32 bytes of key material.
         """
+        if isinstance(key, str):
+            key = key.encode('utf-8') 
+        if isinstance(key, Bits):
+            key = key.tobytes()
         if len(key) != 32:
             raise ValueError("Key must be exactly 32 bytes (256 bits).")
-        self.key = key
-        self.aesgcm = AESGCM(self.key)
+        self.key_bytes = key
+    
+    @property
+    def codec(self):
+        return AESGCM(self.key_bytes)
 
-    def encrypt(self, data) -> bytes:
+    @classmethod
+    def from_password(cls, password:str):
+        return cls(sha256(password).digest())
+
+    def encrypt(self, data, out=bytes):
         """
         Encrypts binary data using AES-GCM.
          Returns a concatenated bytes object: nonce (12 bytes) + ciphertext + tag.
         :param data: The binary data to encrypt.
         :return: Encrypted data.
         """
-        if not isinstance(data, bytes):
-            data = data.encode('utf-8') if isinstance(data, str) else bytes(data)
+        if isinstance(data, str):
+            data = data.encode('utf-8') 
+        if isinstance(data, Bits):
+            data = data.tobytes()
             
         nonce = os.urandom(12) # GCM standard nonce size
         # encrypt returns ciphertext + tag
-        ciphertext = self.aesgcm.encrypt(nonce, data, None)
-        return nonce + ciphertext
+        ciphertext = self.codec.encrypt(nonce, data, None)
+        if out is bytes:
+            return nonce + ciphertext
+        elif out is Bits:
+            return Bits.from_bytes(nonce + ciphertext)
+        else:
+            raise ValueError("Invalid output type")
 
-    def decrypt(self, encrypted_data: bytes) -> bytes:
+    def decrypt(self, encrypted_data, out=bytes):
         """
         Decrypts binary data.
         Expects concatenated bytes: nonce (first 12 bytes) + (ciphertext + tag).
@@ -40,6 +60,8 @@ class EnDeCrypt:
         :return: Original binary data.
         :raises ValueError: If decryption fails (e.g., tampered data).
         """
+        if isinstance(encrypted_data, Bits):
+            encrypted_data = encrypted_data.tobytes()
         if len(encrypted_data) < 12 + 16: # 12 byte nonce + minimum 16 byte tag
              raise ValueError("Encrypted data is too short or malformed.")
              
@@ -47,7 +69,10 @@ class EnDeCrypt:
         ciphertext = encrypted_data[12:]
         
         try:
-            return self.aesgcm.decrypt(nonce, ciphertext, None)
+            if out is bytes:
+                return self.codec.decrypt(nonce, ciphertext, None)
+            elif out is Bits:
+                return Bits.from_bytes(self.codec.decrypt(nonce, ciphertext, None))
         except Exception as e:
             raise ValueError("Decryption failed. Data might be tampered with or key is incorrect.") from e
 
@@ -75,4 +100,16 @@ if __name__ == "__main__":
             print(temp == temp2, temp2)
             print(msg == cipher.decrypt(temp2), cipher.decrypt(temp2))
 			
-    test2(*test())
+    #test2(*test())
+    def testk():
+        key = Bits.random(32)
+        check = Bits.random(32)
+        temp = EnDeCrypt(key)
+        enc = temp.encrypt(check)
+        print(check.tobytes())
+        print(len(Bits.from_bytes(enc)))
+        print(enc)
+        dec = temp.decrypt(enc)
+        print(len(Bits.from_bytes(dec)))
+        print(dec)
+    testk()
