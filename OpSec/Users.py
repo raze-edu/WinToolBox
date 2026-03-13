@@ -221,9 +221,10 @@ class User:
         self.int_list = int_list
 
     @classmethod
-    def create_pw(cls):
+    def create_root(cls):
         dom, user = cls.get_current_domain_and_user()
         pw = input(f"Enter password for {dom}/{user}: ")
+        key = EnDeCrypt.from_password(pw).encrypt(b'root')
         
     @classmethod
     def load(cls, ureg: UserRegister):
