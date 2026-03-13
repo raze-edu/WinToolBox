@@ -2,6 +2,7 @@ import os
 from hashlib import sha256
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from json import loads, dumps
+from hashlib import sha256
 from util.bits import Bits
 
 class EnDeCrypt:
@@ -29,7 +30,7 @@ class EnDeCrypt:
     def from_password(cls, password:str):
         return cls(sha256(password).digest())
 
-    def encrypt(self, data) -> bytes:
+    def encrypt(self, data, out=bytes):
         """
         Encrypts binary data using AES-GCM.
          Returns a concatenated bytes object: nonce (12 bytes) + ciphertext + tag.
@@ -44,9 +45,14 @@ class EnDeCrypt:
         nonce = os.urandom(12) # GCM standard nonce size
         # encrypt returns ciphertext + tag
         ciphertext = self.codec.encrypt(nonce, data, None)
-        return nonce + ciphertext
+        if out is bytes:
+            return nonce + ciphertext
+        elif out is Bits:
+            return Bits.from_bytes(nonce + ciphertext)
+        else:
+            raise ValueError("Invalid output type")
 
-    def decrypt(self, encrypted_data: bytes) -> bytes:
+    def decrypt(self, encrypted_data, out=bytes):
         """
         Decrypts binary data.
         Expects concatenated bytes: nonce (first 12 bytes) + (ciphertext + tag).
@@ -54,6 +60,8 @@ class EnDeCrypt:
         :return: Original binary data.
         :raises ValueError: If decryption fails (e.g., tampered data).
         """
+        if isinstance(encrypted_data, Bits):
+            encrypted_data = encrypted_data.tobytes()
         if len(encrypted_data) < 12 + 16: # 12 byte nonce + minimum 16 byte tag
              raise ValueError("Encrypted data is too short or malformed.")
              
@@ -61,7 +69,10 @@ class EnDeCrypt:
         ciphertext = encrypted_data[12:]
         
         try:
-            return self.codec.decrypt(nonce, ciphertext, None)
+            if out is bytes:
+                return self.codec.decrypt(nonce, ciphertext, None)
+            elif out is Bits:
+                return Bits.from_bytes(self.codec.decrypt(nonce, ciphertext, None))
         except Exception as e:
             raise ValueError("Decryption failed. Data might be tampered with or key is incorrect.") from e
 

@@ -7,4 +7,6 @@ from HardwareToken import *
 
 
 
+class KeyBase:
+    pass
     

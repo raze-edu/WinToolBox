@@ -36,6 +36,24 @@ class Data:
         
         self._initialize_archive()
 
+    def __dict__(self):
+        return dict(path=self.archive_path, n_slots=self.n_slots, slot_size=self.slot_size, n_users=self.n_users, name_length=self.name_length)
+    
+    @classmethod
+    def config_load(cls, name):
+        with open(Path(ROOT,'config.json'), 'r') as f:
+            data = loads(f.read())
+            if data.get(name, False):
+                return cls(name, data[name]['data'], data[name]['n_slots'], data[name]['slot_size'], data[name]['n_users'], data[name]['name_length'])
+        return None
+
+    def config_save(self):
+        with open(Path(ROOT, 'config.json'), 'r') as f:
+            data = loads(f.read())
+        data[self.name].update({'data': self.archive_path, 'n_slots': self.n_slots, 'slot_size': self.slot_size, 'n_users': self.n_users, 'name_length': self.name_length})
+        with open(Path(ROOT, 'config.json'), 'w') as f:
+            f.write(dumps(data, indent=4))
+
     def _initialize_archive(self):
         if not os.path.exists(self.full_path):
             self.full_path.parent.mkdir(parents=True, exist_ok=True)

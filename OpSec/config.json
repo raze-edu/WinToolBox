@@ -1,0 +1,6 @@
+{
+    "template": {
+        "users": ".users",
+        "n_user": 16
+    }
+}
