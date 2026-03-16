@@ -33,4 +33,10 @@ class DataContainer:
         config.save()
         return cls(config)
 
-        
+
+
+if __name__ == '__main__':
+    temp = DataContainer.create_new()
+    print(temp.users)
+    temp.data.write_file('test', b'Hello World')
+    
