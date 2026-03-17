@@ -10,7 +10,8 @@ from GUI import *
 class DataContainer:
     def __init__(self, config: ConfigHandle):
         self.config = config
-        
+        self.session = None
+
     @property
     def data(self):
         return self.config.data
@@ -39,10 +40,12 @@ class DataContainer:
             username = run_gui(LoginWindow)
             if self.users._find_user(username) is None:
                 raise ValueError("User not found")
-            u = self.users.read_user(username)
+            self.session = User(*self.users.read_user(username))
+            
 
+    def access(self):
+        self.data.list_files([self.session.index])
 
-        
 
 if __name__ == '__main__':
     temp = DataContainer.create_new()

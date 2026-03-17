@@ -1,9 +1,11 @@
 import os
 import struct
+from time import perf_counter_ns as nsec
 from math import ceil
 from bitarray import bitarray as ba
 from bitarray.util import ba2int as b2i, int2ba as i2b, ba2hex as b2h, hex2ba as h2b
 from pathlib import Path
+from GUI import *
 from HardwareToken import HardwareToken
 
 class UserRegister:
@@ -214,11 +216,41 @@ class Flags(list):
 
 
 class User:
-    def __init__(self, username, flags, key, int_list):
-        self.username = username
-        self.flags = Flags(flags)
-        self.key = key
-        self.int_list = int_list
+    timeout = 0
+    validation = None
+    def __init__(self, *args):
+        self.timestamp = nsec()
+        self.index, self.username, self.flags, self._puplic_key, self.refs = args
+        self.private_key = None
+
+    @classmethod
+    def config_load(cls, config):
+        cls.timeout = config.timeout
+        cls.validation = config.validate_key
+        return cls
+
+    def _auth_prompt(self):
+        if self.flags[0]:
+            pw = run_gui(PasswordPromptWindow).get('password', False)
+            if pw:
+                self.private_key = EnDeCrypt.from_password(pw).mutate(self._puplic_key)
+                if self.validation(self.private_key):
+                    self.timestamp = nsec()
+                else:
+                    raise ValueError("Password is incorrect")
+            else:
+                raise ValueError("Password not provided")
+
+    @property
+    def key(self):
+        if any([(nsec() - self.timestamp) * (1000 ** -3) > self.timeout, self.private_key is None]):
+            self.private_key = None
+            self._auth_prompt()
+        if not self.validation(self.private_key):
+            raise ValueError("Password is incorrect")
+        else:
+            self.timestamp = nsec()
+            return self._puplic_key
 
     @classmethod
     def create_root(cls):

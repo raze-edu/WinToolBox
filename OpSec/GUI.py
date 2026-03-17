@@ -168,6 +168,38 @@ class LoginWindow(tk.Toplevel):
                 Global.data['use_windows_login'] = win_login
                 self.destroy()
 
+class PasswordPromptWindow(tk.Toplevel):
+    def __init__(self, master=None):
+        super().__init__(master)
+        self.title("Password Prompt")
+        self.geometry("300x120")
+        
+        self.columnconfigure(1, weight=1)
+        
+        self.password_var = tk.StringVar()
+        
+        tk.Label(self, text="Password:").grid(row=0, column=0, sticky="e", padx=10, pady=20)
+        self.password_entry = tk.Entry(self, textvariable=self.password_var, show="*")
+        self.password_entry.grid(row=0, column=1, sticky="ew", padx=10, pady=20)
+        
+        # Bind enter key to submit
+        self.password_entry.bind("<Return>", lambda event: self.submit())
+        self.password_entry.focus_set()
+        
+        btn_frame = tk.Frame(self)
+        btn_frame.grid(row=1, column=0, columnspan=2, pady=10)
+        
+        tk.Button(btn_frame, text="Submit", command=self.submit, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Cancel", command=self.cancel, width=10).pack(side=tk.LEFT, padx=5)
+
+    def submit(self):
+        Global.data['password'] = self.password_var.get()
+        self.destroy()
+        
+    def cancel(self):
+        Global.data['password'] = ""  # Or whatever signifies cancellation
+        self.destroy()
+
 def run_gui(window):
     root = tk.Tk()
     root.withdraw() # Hide the root window

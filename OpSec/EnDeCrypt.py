@@ -76,6 +76,10 @@ class EnDeCrypt:
         except Exception as e:
             raise ValueError("Decryption failed. Data might be tampered with or key is incorrect.") from e
 
+    def mutate(self, data):
+        self.key_bytes = self.decrypt(data)
+        return self
+
     def read_table(self, table, name: str):
         return loads(self.decrypt(table.read_file(name)).decode('utf-8'))
 
