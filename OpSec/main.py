@@ -22,21 +22,30 @@ class DataContainer:
     @classmethod
     def create_new(cls):
         real_key = os.urandom(32)
-        data = run_gui(NewContainerConfigWindow)
-        temp = EnDeCrypt.from_password(data['supw'])
-        user = ('root', temp.encrypt(real_key), [True for _ in range(8)], [0 for _ in range(4)])
-        user_register = UserRegister(data['archive_name'], data['archive_path'], data['username_length'])
-        user_register.create(user)
-        data = Data(data['archive_name'], data['archive_path'], data['n_slots'], data['slot_size'], data['n_users'], data['dataname_length'])
-        data['check_sum'] = temp.encrypt(data['archive_name'])
-        config = ConfigHandle(data['archive_name'], data['archive_path'], data['n_slots'], data['slot_size'], data['n_users'], data['dataname_length'], data['username_length'], data['timeout'], temp.encrypt(real_key))
+        _data = run_gui(NewContainerConfigWindow)
+        temp = EnDeCrypt.from_password(_data['supw'])
+        user = ('root', [True for _ in range(8)], temp.encrypt(real_key), [0 for _ in range(4)])
+        user_register = UserRegister(_data['archive_path'], _data['n_user'], _data['username_length'])
+        user_register.write_user(*user)
+        Data(_data['archive_name'], _data['archive_path'], _data['n_slots'], _data['slot_size'], _data['n_user'], _data['dataname_length'])
+        _data['checksum'] = temp.encrypt(_data['archive_name'])
+        
+        config = ConfigHandle(**_data)
         config.save()
         return cls(config)
 
+    def create_Session(self, archive, username=None):
+        if username is None:
+            username = run_gui(LoginWindow)
+            if self.users._find_user(username) is None:
+                raise ValueError("User not found")
+            u = self.users.read_user(username)
 
+
+        
 
 if __name__ == '__main__':
     temp = DataContainer.create_new()
     print(temp.users)
     temp.data.write_file('test', b'Hello World')
-    
+    pass

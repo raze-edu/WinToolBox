@@ -1,25 +1,29 @@
 import os
 import struct
+from math import ceil
 from bitarray import bitarray as ba
 from bitarray.util import ba2int as b2i, int2ba as i2b, ba2hex as b2h, hex2ba as h2b
 from pathlib import Path
 from HardwareToken import HardwareToken
 
 class UserRegister:
-    def __init__(self, archive_path, n_user, username_len=32):
+    def __init__(self, archive_path, n_user, username_length=32):
         """
         Initialize the UserRegister object with a path to a custom fixed-size slot archive.
         
         :param archive_path: Path to the archive file.
         :param n_user: Maximum number of users (determines file size and index block size).
         """
+        print(n_user)
+        if isinstance(n_user, str):
+            n_user = int(n_user)
         self.secret_length = 60
         self.archive_path = Path(archive_path, '.users')                                                                                         
         self.n_user = n_user
-        self.username_len = username_len
+        self.username_length = username_length
         # Calculate the size of the index block in bytes
         # It needs to be large enough to hold integer values up to n_user - 1
-        self.index_size = max(1, (max(0, n_user - 1).bit_length() + 7) // 8)
+        self.index_size = ceil(n_user.bit_length() / 8)
         
         # A user slot is built from blocks:
         # - index number: index_size bytes
@@ -40,8 +44,8 @@ class UserRegister:
                     f.write(b'\x00' * (self.slot_size - self.index_size))
     
     @classmethod
-    def config_load(cls, config: ConfigHandle):
-        return cls(config.archive_path, config.n_user, config.username_len)
+    def config_load(cls, config):
+        return cls(config.archive_path, config.n_user, config.username_length)
     
     def _pack_slot(self, index: int, username: str, flags: list[bool], key: bytes, int_list: list[int]) -> bytes:
         if len(int_list) != 4:
@@ -56,9 +60,9 @@ class UserRegister:
         u_bytes = username.encode('utf-8')
         if len(u_bytes) == 0:
             raise ValueError("Username cannot be empty")
-        if len(u_bytes) > self.username_len:
+        if len(u_bytes) > self.username_length:
             raise ValueError("Username too long (max 32 bytes UTF-8)")
-        u_bytes = u_bytes.ljust(self.username_len, b'\x00')
+        u_bytes = u_bytes.ljust(self.username_length, b'\x00')
         
         # 3. flags (1 byte holding max 8 flags)
         if len(flags) > 8:
@@ -93,9 +97,9 @@ class UserRegister:
         offset += self.index_size
         
         # 2. username
-        u_bytes = data[offset:offset+self.username_len]
+        u_bytes = data[offset:offset+self.username_length]
         username = u_bytes.split(b'\x00', 1)[0].decode('utf-8')
-        offset += self.username_len
+        offset += self.username_length
         
         # 3. flags
         flag_byte = struct.unpack("<B", data[offset:offset+1])[0]
@@ -124,7 +128,7 @@ class UserRegister:
         with open(self.archive_path, "rb") as f:
             for i in range(self.n_user):
                 f.seek(i * self.slot_size + self.index_size)
-                slot_u_bytes = f.read(self.username_len)
+                slot_u_bytes = f.read(self.username_length)
                 if slot_u_bytes.split(b'\x00', 1)[0] == u_bytes:
                     return i
         return -1
@@ -134,7 +138,7 @@ class UserRegister:
         with open(self.archive_path, "rb") as f:
             for i in range(self.n_user):
                 f.seek(i * self.slot_size + self.index_size)
-                slot_u_bytes = f.read(self.username_len)
+                slot_u_bytes = f.read(self.username_length)
                 if slot_u_bytes[0] == 0:  # Empty username means it starts with a null byte
                     return i
         return -1

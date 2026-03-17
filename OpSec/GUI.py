@@ -1,7 +1,10 @@
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, simpledialog, ttk
 from pathlib import Path
-
+try:
+    from Config import ConfigHandle
+except ImportError:
+    pass
 class Global:
     data = {}
 
@@ -96,7 +99,7 @@ class NewContainerConfigWindow(tk.Toplevel):
             'archive_path': self.archive_path_var.get(),
             'slot_size': self.slot_size_var.get(),
             'n_slots': self.n_slots_var.get(),
-            'n_users': self.n_users_var.get(),
+            'n_user': self.n_users_var.get(),
             'dataname_length': self.dataname_length_var.get(),
             'username_length': self.username_length_var.get(),
             'timeout': self.timeout_var.get(),
@@ -112,6 +115,59 @@ class NewContainerConfigWindow(tk.Toplevel):
         self.destroy()
 
 
+class LoginWindow(tk.Toplevel):
+    def __init__(self, master=None):
+        super().__init__(master)
+        self.title("Login")
+        self.geometry("300x200")
+
+        self.columnconfigure(1, weight=1)
+
+        try:
+            archive_names = list(ConfigHandle.config_obj.keys())
+        except NameError:
+            archive_names = []
+            
+        options = ["create new"] + archive_names
+
+        self.archive_var = tk.StringVar(value="create new")
+        
+        row = 0
+        tk.Label(self, text="Archive:").grid(row=row, column=0, sticky="e", padx=5, pady=5)
+        self.archive_dropdown = ttk.Combobox(self, textvariable=self.archive_var, values=options, state="readonly")
+        self.archive_dropdown.grid(row=row, column=1, sticky="ew", padx=5, pady=5)
+        
+        row += 1
+        
+        self.win_login_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(self, text="use Windows Login", variable=self.win_login_var).grid(row=row, column=0, columnspan=2, pady=5)
+        
+        row += 1
+        
+        tk.Button(self, text="Connect", command=self.connect).grid(row=row, column=0, columnspan=2, pady=15)
+
+    def connect(self):
+        archive = self.archive_var.get()
+        win_login = self.win_login_var.get()
+        
+        if archive == "create new":
+            self.withdraw()
+            new_win = NewContainerConfigWindow(self.master)
+            self.master.wait_window(new_win)
+            self.destroy()
+        else:
+            if not win_login:
+                username = simpledialog.askstring("Username", "Please enter username:")
+                if username:
+                    Global.data['archive_name'] = archive
+                    Global.data['use_windows_login'] = win_login
+                    Global.data['username'] = username
+                    self.destroy()
+            else:
+                Global.data['archive_name'] = archive
+                Global.data['use_windows_login'] = win_login
+                self.destroy()
+
 def run_gui(window):
     root = tk.Tk()
     root.withdraw() # Hide the root window
@@ -124,5 +180,5 @@ def run_gui(window):
     return Global.data
 
 if __name__ == "__main__":
-    print(run_gui(NewContainerConfigWindow))
-    
+    print(run_gui(LoginWindow))
+    pass

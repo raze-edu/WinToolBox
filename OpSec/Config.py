@@ -8,13 +8,24 @@ from Users import UserRegister
 ROOT = Path().cwd()
 
 class ConfigHandle:
-    config_path = Path(ROOT, 'config.json')
-    config_obj = loads(open(Path(ROOT, 'config.json'), 'r').read())
-    __slots__ = 'archive_name', 'archive_path', 'slot_size', 'n_slots', 'n_users', 'name_length', 'username_len', 'timeout', 'checksum'
+    config_path = Path(ROOT, 'OpSec', 'config.json')
+    try:
+        config_obj = loads(open(config_path, 'r').read())
+    except:
+        config_obj = {}
+    __slots__ = 'archive_name', 'archive_path', 'slot_size', 'n_slots', 'n_user', 'dataname_length', 'username_length', 'timeout', 'checksum'
     def __init__(self, **kwargs):
-        default = dict(slot_size=4096, n_slots=4096, n_users=16, name_length=32, timeout=300)
+        default = dict(slot_size=4096, n_slots=4096, n_users=16, dataname_length=32, timeout=300)
         [super().__setattr__(slot, kwargs.get(slot, default.get(slot))) for slot in self.__slots__]
-    
+        if isinstance(self.archive_path, str):
+            self.archive_path = Path(self.archive_path)
+        if isinstance(self.archive_path, list):
+            self.archive_path = Path(*self.archive_path)
+        if isinstance(self.checksum, str):
+            self.checksum = Bits(self.checksum)
+        if isinstance(self.checksum, bytes):
+            self.checksum = Bits.from_bytes(self.checksum)
+
     @property
     def configs(self):
         return [key for key in self.config_obj.keys()]
@@ -30,21 +41,6 @@ class ConfigHandle:
     def users(self):
         return UserRegister.config_load(self)
     
-    def get_users_config(self, name):
-        if (config := self.config_obj.get(name, False)):
-            return self.read_path(config['path']), config['n_user']
-        return None
-
-    def get_data_config(self, name):
-        if (config := self.config_obj.get(name, False)):
-            return self.read_path(config['path']), config['n_slots'], config['slot_size'], config['n_users'], config['name_length']
-        return None
-
-    def get_local_secret_part(self, name):
-        if (config := self.config_obj.get(name, False)):
-            return config['secret']
-        return None
-
     def get_puplic_key(self, name):
         return sha256(name.encode('utf-8')).hexdigest()
     
@@ -55,35 +51,38 @@ class ConfigHandle:
                     val = Path(val)
                 if isinstance(val, list):
                     val = Path(*val)
-        elif key == 'key_validation':
+        elif key == 'checksum':
             if isinstance(val, str):
                 val = Bits(val)
             elif isinstance(val, bytes):
                 val = Bits.from_bytes(val)
         super().__setattr__(key, val)
 
-    def create(self):
-        if not self.configpath.exists():
-            with open(self.configpath, 'w') as f:
+    def save(self):
+        # if not exists create empty config file
+        if not self.config_path.exists():
+            with open(self.config_path, 'w') as f:
                 f.write(dumps({}))
+        # load the config file 
         temp = self.config_obj
         data = {'archive_name': self.archive_name, 
                 'archive_path': self.archive_path.parts, 
                 'slot_size': self.slot_size, 
                 'n_slots': self.n_slots, 
-                'n_users': self.n_users, 
-                'name_length': self.name_length, 
+                'n_user': self.n_user, 
+                'dataname_length': self.dataname_length, 
+                'username_length': self.username_length,
                 'timeout': self.timeout,
-                'checksum': self.checksum}
+                'checksum': ''.join([str(t) for t in self.checksum])}
         temp.update({self.archive_name: data})
-        with open(self.configpath, 'w') as f:
+        with open(self.config_path, 'w') as f:
             f.write(dumps(temp, indent=4))
 
     def remove(self, name):
         temp = self.config_obj
         if name in temp:
             del temp[name]
-            with open(self.configpath, 'w') as f:
+            with open(self.config_path, 'w') as f:
                 f.write(dumps(temp, indent=4))
 
     @classmethod

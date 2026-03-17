@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
+from math import ceil
 
 class Data:
-    def __init__(self, archive_name: str, archive_path: Path | str, n_slots: int, slot_size: int, n_users: int, dataname_length: int = 64):
+    def __init__(self, archive_name: str, archive_path: Path | str, n_slots: int, slot_size: int, n_user: int, dataname_length: int = 64):
         """
         Initialize the Data object with a fixed-size slot archive.
         """
@@ -12,20 +13,20 @@ class Data:
         
         self.n_slots = n_slots
         self.slot_size = slot_size
-        self.n_users = n_users
+        self.n_user = n_user
         self.dataname_length = dataname_length
         
         # Calculate sizes
         self.id_bytes = max(1, (max(0, n_slots - 1).bit_length() + 7) // 8)
         
         # Permission bytes: 3 flags + user ID bits
-        user_bits = max(0, n_users - 1).bit_length()
+        user_bits = ceil(n_user.bit_length() / 8)
         total_perm_bits = 3 + user_bits
         self.perm_bytes = max(1, (total_perm_bits + 7) // 8)
         
         self.index_entry_size = (
             self.id_bytes + 
-            self.name_length + 
+            self.dataname_length + 
             1 + 
             (4 * self.perm_bytes)
         )
@@ -37,16 +38,16 @@ class Data:
         self._initialize_archive()
 
     def __dict__(self):
-        return dict(path=self.archive_path, n_slots=self.n_slots, slot_size=self.slot_size, n_users=self.n_users, name_length=self.name_length)
+        return dict(path=self.archive_path, n_slots=self.n_slots, slot_size=self.slot_size, n_users=self.n_user, dataname_length=self.dataname_length)
     
     @classmethod
-    def config_load(cls, config: ConfigHandle):
-        return cls(config.archive_name, config.archive_path, config.n_slots, config.slot_size, config.n_users, config.dataname_length)
+    def config_load(cls, config):
+        return cls(config.archive_name, config.archive_path, config.n_slots, config.slot_size, config.n_user, config.dataname_length)
 
     def config_save(self):
         with open(Path(ROOT, 'config.json'), 'r') as f:
             data = loads(f.read())
-        data[self.name].update({'data': self.archive_path, 'n_slots': self.n_slots, 'slot_size': self.slot_size, 'n_users': self.n_users, 'dataname_length': self.dataname_length})
+        data[self.name].update({'data': self.archive_path, 'n_slots': self.n_slots, 'slot_size': self.slot_size, 'n_user': self.n_user, 'dataname_length': self.dataname_length})
         with open(Path(ROOT, 'config.json'), 'w') as f:
             f.write(dumps(data, indent=4))
 

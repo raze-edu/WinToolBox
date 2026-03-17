@@ -28,7 +28,7 @@ class EnDeCrypt:
 
     @classmethod
     def from_password(cls, password:str):
-        return cls(sha256(password).digest())
+        return cls(sha256(password.encode('utf-8')).digest())
 
     def encrypt(self, data, out=bytes):
         """
@@ -76,10 +76,10 @@ class EnDeCrypt:
         except Exception as e:
             raise ValueError("Decryption failed. Data might be tampered with or key is incorrect.") from e
 
-    def read_table(self, table: Data, name: str):
+    def read_table(self, table, name: str):
         return loads(self.decrypt(table.read_file(name)).decode('utf-8'))
 
-    def write_table(self, table: Data, name: str, data: dict):
+    def write_table(self, table, name: str, data: dict):
         table.write_file(name, self.encrypt(dumps(data).encode('utf-8')))
 
 if __name__ == "__main__":
