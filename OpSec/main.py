@@ -43,9 +43,11 @@ class DataContainer:
             self.session = User(*self.users.read_user(username))
             
 
-    def access(self):
-        self.data.list_files([self.session.index])
+    def get_access(self):
+        return self.data.list_files([self.session.index])
 
+    def add_data(self, name, data):
+        self.data.write_file(name, data, [self.session.index])
 
 if __name__ == '__main__':
     temp = DataContainer.create_new()
