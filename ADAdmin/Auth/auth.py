@@ -11,6 +11,8 @@ import getpass
 import urllib.request
 import urllib.parse
 import ctypes
+import string
+import subprocess
 from ctypes import wintypes
 from cryptography.fernet import Fernet
 
@@ -369,6 +371,25 @@ class ADAuthSession:
 _session_key = None
 
 
+def generate_safe_password(length: int = 32) -> str:
+    """
+    Generates a cryptographically secure random modhex password.
+    Modhex characters (cbdefghijklnrtuv) are 100% safe across all keyboard layouts
+    because they map to the same physical keys on standard keyboards worldwide.
+    """
+    alphabet = "cbdefghijklnrtuv"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def derive_fernet_key(password_str: str) -> bytes:
+    """
+    Derives a valid Fernet key (32 URL-safe base64-encoded bytes) from any string
+    using SHA-256.
+    """
+    h = hashlib.sha256(password_str.encode('utf-8')).digest()
+    return base64.urlsafe_b64encode(h)
+
+
 def get_encryption_key() -> bytes:
     """
     Retrieves the plain text Fernet encryption/decryption key.
@@ -393,11 +414,11 @@ def get_encryption_key() -> bytes:
         print("\n==================================================")
         print("      Master Yubikey Decryption Key Required     ")
         print("==================================================")
-        print("Tap your master Yubikey to input the decryption key.")
-        key_input = getpass.getpass("Yubikey Decryption Key: ").strip().encode('utf-8')
+        print("Press and HOLD (long-press for 3-4 seconds) your master YubiKey to input the decryption key.")
+        key_input = getpass.getpass("Long-press YubiKey (Slot 2): ").strip()
         if not key_input:
             raise ValueError("Decryption key cannot be empty.")
-        _session_key = key_input
+        _session_key = derive_fernet_key(key_input)
         return _session_key
 
 
@@ -585,32 +606,56 @@ def do_init():
 
     elif choice == "2":
         mfa_type = "yubikey"
-        key = Fernet.generate_key()
-        key_str = key.decode('utf-8')
-
+        
+        # Generate a safe 32-character alphanumeric password
+        static_password = generate_safe_password(32)
+        
         print("\n---------------- Master Yubikey Setup -------------")
-        print("We have generated a secure 44-character decryption key for your credentials database.")
-        print("Please program this key into one of your Yubikey's slots (e.g., Slot 2) as a 'Static Password' using YubiKey Manager.")
-        print(f"\nGenerated Key: {key_str}\n")
-        print("Once programmed, let's verify it:")
-        print("1. Insert your master Yubikey into a USB port.")
-        print("2. Focus the input field below.")
-        print("3. Gently touch/tap the gold button on your master Yubikey (or paste the key).")
+        print("We will generate and program a secure 32-character static decryption password")
+        print("directly onto your YubiKey Slot 2 using the YubiKey Manager CLI.")
+        print(f"\nGenerated Key: {static_password}\n")
+        print("1. Insert your master YubiKey into a USB port.")
+        confirm_insert = input("Press Enter when your YubiKey is inserted and ready... ")
+        
+        # Program YubiKey static password directly
+        try:
+            print("Programming YubiKey Slot 2 with the decryption password...")
+            cmd = ["ykman", "otp", "static", "--keyboard-layout", "modhex", "-f", "2", static_password]
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            print("[Success] Decryption key successfully written to YubiKey Slot 2!")
+        except FileNotFoundError:
+            print("\n[Error] YubiKey Manager CLI ('ykman') is not found on your system path.")
+            print("Please install YubiKey Manager and ensure 'ykman' is added to your PATH environment variable.")
+            print("\nTo configure manually instead, please program the Generated Key above into YubiKey Slot 2 as a Static Password.")
+            confirm_manual = input("Press Enter after you have programmed it manually, or Ctrl+C to cancel... ")
+        except subprocess.CalledProcessError as e:
+            print(f"\n[Warning] Automated YubiKey programming failed: {e.stderr or e.stdout or str(e)}")
+            print("To configure manually instead, please program the Generated Key above into YubiKey Slot 2 as a Static Password.")
+            confirm_manual = input("Press Enter after you have programmed it manually, or Ctrl+C to cancel... ")
+            
+        print("\nOnce programmed, let's verify it:")
+        print("1. Focus the input field below.")
+        print("2. PRESS AND HOLD (long-press for 3-4 seconds) the gold button on your master YubiKey.")
+        print("   (Do NOT just tap it quickly. A quick tap triggers Slot 1's Yubico OTP, which will fail).")
         
         attempts = 3
         while attempts > 0:
-            otp_tap = getpass.getpass("Tap Yubikey here: ").strip()
-            if otp_tap == key_str:
+            otp_tap = getpass.getpass("Long-press YubiKey here (Slot 2): ").strip()
+            if otp_tap == static_password:
                 print("[Success] Decryption key verified successfully!")
                 mfa_secret = "hardware_key"
                 break
             else:
                 attempts -= 1
-                print(f"[Error] Key mismatch. {attempts} attempts remaining.")
+                print(f"[Error] Key mismatch.")
+                print(f"  Expected: {static_password} (len={len(static_password)})")
+                print(f"  Received: {otp_tap} (len={len(otp_tap)})")
+                print(f"  {attempts} attempts remaining.")
         else:
             print("[Failure] Failed to verify Yubikey static key. Initialization cancelled.")
             return
-            
+
+        key = derive_fernet_key(static_password)            
     else:
         print("[Error] Invalid selection. Initialization cancelled.")
         return

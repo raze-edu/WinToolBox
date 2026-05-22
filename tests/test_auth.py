@@ -269,13 +269,13 @@ class TestIndependentEncryption(unittest.TestCase):
     def test_yubikey_setup_no_key_bin(self):
         """Test that Yubikey flow generates key, prompts to verify, and does NOT write key.bin."""
         from unittest.mock import patch
-        from cryptography.fernet import Fernet
-        valid_key = Fernet.generate_key()
-        valid_key_str = valid_key.decode('utf-8')
         
-        with patch('builtins.input', return_value='2'), \
-             patch('getpass.getpass', return_value=valid_key_str), \
-             patch('cryptography.fernet.Fernet.generate_key', return_value=valid_key), \
+        static_password = "cbdefghijklnrtuvcbdefghijklnrtuv"
+        
+        with patch('ADAdmin.Auth.auth.generate_safe_password', return_value=static_password), \
+             patch('builtins.input', side_effect=['2', '']), \
+             patch('subprocess.run') as mock_run, \
+             patch('getpass.getpass', return_value=static_password), \
              patch('builtins.print'):
             self.auth.do_init()
             
@@ -286,7 +286,7 @@ class TestIndependentEncryption(unittest.TestCase):
         # Verify config contents
         self.auth._session_key = None
         
-        with patch('getpass.getpass', return_value=valid_key_str):
+        with patch('getpass.getpass', return_value=static_password):
             config = self.auth.load_config()
             self.assertEqual(config["master_mfa_type"], "yubikey")
             self.assertEqual(config["master_mfa_secret"], "hardware_key")
@@ -294,9 +294,9 @@ class TestIndependentEncryption(unittest.TestCase):
     def test_yubikey_verify_master_auth_implicit(self):
         """Test that verify_master_auth is implicit for Yubikey flow (decryption success)."""
         from unittest.mock import patch
-        from cryptography.fernet import Fernet
-        valid_key = Fernet.generate_key()
-        valid_key_str = valid_key.decode('utf-8')
+        
+        static_password = "cbdefghijklnrtuvcbdefghijklnrtuv"
+        derived_key = self.auth.derive_fernet_key(static_password)
         
         # Set up a Yubikey config manually
         payload = {
@@ -305,7 +305,8 @@ class TestIndependentEncryption(unittest.TestCase):
             "credentials": {}
         }
         import json
-        fernet = Fernet(valid_key)
+        from cryptography.fernet import Fernet
+        fernet = Fernet(derived_key)
         encrypted_data = fernet.encrypt(json.dumps(payload).encode('utf-8'))
         
         with open(self.auth.CONFIG_PATH, "wb") as f:
@@ -314,16 +315,16 @@ class TestIndependentEncryption(unittest.TestCase):
         self.auth._session_key = None
         
         # Test verify_master_auth
-        with patch('getpass.getpass', return_value=valid_key_str), \
+        with patch('getpass.getpass', return_value=static_password), \
              patch('builtins.print'):
             self.assertTrue(self.auth.verify_master_auth())
 
     def test_yubikey_session_caching(self):
         """Test that Yubikey decryption key is cached, preventing double prompts."""
         from unittest.mock import patch
-        from cryptography.fernet import Fernet
-        valid_key = Fernet.generate_key()
-        valid_key_str = valid_key.decode('utf-8')
+        
+        static_password = "cbdefghijklnrtuvcbdefghijklnrtuv"
+        derived_key = self.auth.derive_fernet_key(static_password)
         
         payload = {
             "master_mfa_type": "yubikey",
@@ -331,7 +332,8 @@ class TestIndependentEncryption(unittest.TestCase):
             "credentials": {}
         }
         import json
-        fernet = Fernet(valid_key)
+        from cryptography.fernet import Fernet
+        fernet = Fernet(derived_key)
         encrypted_data = fernet.encrypt(json.dumps(payload).encode('utf-8'))
         
         with open(self.auth.CONFIG_PATH, "wb") as f:
@@ -340,7 +342,7 @@ class TestIndependentEncryption(unittest.TestCase):
         self.auth._session_key = None
         
         # Accessing config the first time should prompt
-        with patch('getpass.getpass', return_value=valid_key_str) as mock_getpass:
+        with patch('getpass.getpass', return_value=static_password) as mock_getpass:
             config1 = self.auth.load_config()
             self.assertEqual(mock_getpass.call_count, 1)
             

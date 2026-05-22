@@ -27,6 +27,7 @@ try {
     
     if ($lockedAccounts.Count -eq 0) {
         Write-Host "Keine gesperrten Benutzer gefunden." -ForegroundColor Cyan
+        Start-Sleep -Seconds 5
         return
     }
 
