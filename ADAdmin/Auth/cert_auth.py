@@ -52,10 +52,7 @@ class AuthHandle:
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
-pem_lock = _key.public_key().public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo
-)
+
 
 print(pem_key.decode())
 print(pem_lock.decode())
